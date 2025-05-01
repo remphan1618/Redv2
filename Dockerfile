@@ -98,22 +98,8 @@ RUN conda install -c conda-forge cudnn
 
 ### Install visomaster
 WORKDIR /workspace
-RUN git clone https://github.com/visomaster/VisoMaster.git
+RUN git clone https://github.com/remphan1618/VisoMaster
 WORKDIR /workspace/visomaster
-
-### Install dependencies. Fix Models.py backslash path
-RUN pip install -r ./requirements.txt --no-cache-dir
-RUN conda install scikit-image
-RUN pip install -r requirements_cu124.txt
-
-### Download models
-WORKDIR /workspace/visomaster/model_assets
-RUN python download_models.py
-WORKDIR /workspace/visomaster/model_assets
-
-### Install jupyterlab
-RUN pip install jupyterlab
-EXPOSE 8080
 
 ### Install filebrowser
 RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
