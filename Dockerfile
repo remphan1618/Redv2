@@ -101,6 +101,29 @@ WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster
 WORKDIR /workspace/visomaster
 
+### Install scikit-image
+RUN conda install scikit-image
+
+### Install requirements
+RUN pip install -r requirements_cu124.txt
+
+### Download models
+WORKDIR /workspace/visomaster/model_assets
+RUN python download_models.py
+
+### Copy setup notebook for TensorRT and advanced configuration
+WORKDIR /workspace/visomaster
+COPY ./setup_visomaster.ipynb /workspace/visomaster/
+
+### Install notebook and requests for the setup notebook to work
+RUN pip install notebook requests
+
+WORKDIR /workspace/visomaster
+
+### Install jupyterlab
+RUN pip install jupyterlab
+EXPOSE 8080
+
 ### Install filebrowser
 RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
 EXPOSE 8585
