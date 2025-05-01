@@ -136,7 +136,11 @@ RUN if [ -f "$INST_SCRIPTS/icewm_ui.sh" ]; then \
         && apt-get clean -y \
         && rm -rf /var/lib/apt/lists/*; \
     fi
-ADD ./src/debian/icewm/ $HOME/ || true
+RUN if [ -d "./src/debian/icewm/" ]; then \
+        cp -r ./src/debian/icewm/* $HOME/ 2>/dev/null; \
+    else \
+        echo "icewm directory not found, skipping"; \
+    fi
 
 ### configure startup
 RUN if [ -f "$INST_SCRIPTS/libnss_wrapper.sh" ]; then \
@@ -144,7 +148,7 @@ RUN if [ -f "$INST_SCRIPTS/libnss_wrapper.sh" ]; then \
     else \
         echo "libnss_wrapper.sh not found, skipping libnss wrapper setup"; \
     fi
-ADD ./src/common/scripts $STARTUPDIR || true
+ADD ./src/common/scripts/* $STARTUPDIR/ || true
 RUN if [ -f "$INST_SCRIPTS/set_user_permission.sh" ]; then \
         $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME; \
     else \
