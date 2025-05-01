@@ -16,7 +16,7 @@ ENV DISPLAY=:1 \
     NO_VNC_PORT=6901
 EXPOSE $VNC_PORT $NO_VNC_PORT
 
-### Environment config
+### Envrionment config
 ENV HOME=/workspace \
     TERM=xterm \
     STARTUPDIR=/dockerstartup \
@@ -28,6 +28,10 @@ ENV HOME=/workspace \
     VNC_VIEW_ONLY=false \
     TZ=Asia/Seoul
 WORKDIR $HOME
+
+### Install filebrowser (moved here, before other dependencies)
+RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+EXPOSE 8585
 
 ### Install necessary dependencies
 RUN apt-get update && apt-get install -y \
@@ -47,30 +51,15 @@ RUN apt-get update && apt-get install -y \
     rsync \
     tzdata && \
     mkdir -p /var/run/sshd && \
-    mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh && \
-    touch /root/.ssh/authorized_keys && \
-    chmod 600 /root/.ssh/authorized_keys && \
-    # Configure SSH for no authentication
-    echo 'PermitRootLogin without-password' >> /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config && \
-    echo 'PermitEmptyPasswords yes' >> /etc/ssh/sshd_config && \
-    echo 'ChallengeResponseAuthentication no' >> /etc/ssh/sshd_config && \
-    echo 'PubkeyAuthentication no' >> /etc/ssh/sshd_config && \
-    # For complete no-auth (warning: extremely insecure)
-    echo 'AuthenticationMethods none' >> /etc/ssh/sshd_config && \
     echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
-    echo 'PermitUserEnvironment yes' >> /etc/ssh/sshd_config && \
-    echo 'UsePAM no' >> /etc/ssh/sshd_config && \
-    # Create SSH key for host (needed even with no auth)
-    ssh-keygen -A && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/*
 
 # Expose SSH port
 EXPOSE 22
-
 
 ### Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
@@ -111,10 +100,10 @@ ADD ./src/common/scripts $STARTUPDIR
 RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
 ### Create conda environment
-RUN conda create -n VisoMaster python=3.10.13 && conda clean --all -y
+RUN conda create -n visomaster python=3.10.13 && conda clean --all -y
 
 ### Activate the environment
-ENV CONDA_DEFAULT_ENV VisoMaster
+ENV CONDA_DEFAULT_ENV visomaster
 RUN echo "source activate $CONDA_DEFAULT_ENV" >> ~/.bashrc
 ENV PATH /opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
@@ -124,20 +113,14 @@ RUN conda install scikit-image
 RUN conda install -c nvidia/label/cuda-12.4.1 cuda-runtime
 RUN conda install -c conda-forge cudnn
 
-### Install VisoMaster
+### Install visomaster
 WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster
-WORKDIR /workspace/VisoMaster
-
-
+WORKDIR /workspace/visomaster
 
 ### Install jupyterlab
 RUN pip install jupyterlab
 EXPOSE 8080
-
-### Install filebrowser
-RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-EXPOSE 8585
 
 ### Reconfigure startup
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
