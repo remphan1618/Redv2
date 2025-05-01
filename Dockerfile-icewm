@@ -98,7 +98,6 @@ RUN conda install -c conda-forge cudnn
 WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster
 WORKDIR /workspace/visomaster
-RUN mkdir -p Logs
 
 # Copy setup notebook
 COPY ./setup_visomaster.ipynb /workspace/visomaster/

@@ -55,14 +55,14 @@ rm miniconda.sh
 ENV PATH /opt/conda/bin:$PATH
 
 ### Add all install scripts for further steps
-ADD ./src/common/install/ $INST_SCRIPTS/
-ADD ./src/debian/install/ $INST_SCRIPTS/
+ADD ./src/common/install/ /src/common/install/
+ADD ./src/debian/install/ /src/debian/install/
 
 ### Give executable permissions to all the scripts in $INST_SCRIPTS
 RUN chmod +x $INST_SCRIPTS/*.sh
 
 ### Install some common tools
-RUN $INST_SCRIPTS/tools.sh
+RUN chmod +x /workspace/install/tools.sh && /workspace/install/tools.sh
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 ### Install custom fonts
