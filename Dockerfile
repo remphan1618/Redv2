@@ -16,7 +16,7 @@ ENV DISPLAY=:1 \
     NO_VNC_PORT=6901
 EXPOSE $VNC_PORT $NO_VNC_PORT
 
-### Envrionment config
+### Environment config
 ENV HOME=/workspace \
     TERM=xterm \
     STARTUPDIR=/dockerstartup \
@@ -41,10 +41,36 @@ RUN apt-get update && apt-get install -y \
     unzip \
     ffmpeg \
     jq \
+    openssh-server \
+    openssh-client \
+    openssh-sftp-server \
+    rsync \
     tzdata && \
+    mkdir -p /var/run/sshd && \
+    mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    touch /root/.ssh/authorized_keys && \
+    chmod 600 /root/.ssh/authorized_keys && \
+    # Configure SSH for no authentication
+    echo 'PermitRootLogin without-password' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config && \
+    echo 'PermitEmptyPasswords yes' >> /etc/ssh/sshd_config && \
+    echo 'ChallengeResponseAuthentication no' >> /etc/ssh/sshd_config && \
+    echo 'PubkeyAuthentication no' >> /etc/ssh/sshd_config && \
+    # For complete no-auth (warning: extremely insecure)
+    echo 'AuthenticationMethods none' >> /etc/ssh/sshd_config && \
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
+    echo 'PermitUserEnvironment yes' >> /etc/ssh/sshd_config && \
+    echo 'UsePAM no' >> /etc/ssh/sshd_config && \
+    # Create SSH key for host (needed even with no auth)
+    ssh-keygen -A && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/*
+
+# Expose SSH port
+EXPOSE 22
+
 
 ### Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
