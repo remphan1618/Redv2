@@ -96,20 +96,20 @@ RUN git clone https://github.com/remphan1618/VisoMaster && \
     echo "VisoMaster cloned"
 
 # Install dependencies
-WORKDIR /workspace/visomaster
+WORKDIR /workspace/VisoMaster
 RUN conda install scikit-image -y
 RUN pip install -r requirements_cu124.txt
 
 # Download models
-WORKDIR /workspace/visomaster/model_assets
+WORKDIR /workspace/VisoMaster/model_assets
 RUN python download_models.py
 
 # Add the notebook into the VisoMaster directory
-COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/visomaster/
+COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/
 
 # Create logs folder and symlink .log files
-RUN mkdir -p /workspace/visomaster/logs && \
-    find / -name "*.log" -exec ln -sf {} /workspace/visomaster/logs/ \;
+RUN mkdir -p /workspace/VisoMaster/logs && \
+    find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \;
 
 # Reconfigure startup script
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
