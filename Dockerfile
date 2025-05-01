@@ -29,10 +29,6 @@ ENV HOME=/workspace \
     TZ=Asia/Seoul
 WORKDIR $HOME
 
-### Install filebrowser (moved here, before other dependencies)
-RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-EXPOSE 8585
-
 ### Install necessary dependencies
 RUN apt-get update && apt-get install -y \
     wget \
@@ -45,21 +41,10 @@ RUN apt-get update && apt-get install -y \
     unzip \
     ffmpeg \
     jq \
-    openssh-server \
-    openssh-client \
-    openssh-sftp-server \
-    rsync \
     tzdata && \
-    mkdir -p /var/run/sshd && \
-    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/*
-
-# Expose SSH port
-EXPOSE 22
 
 ### Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
@@ -121,6 +106,9 @@ WORKDIR /workspace/visomaster
 ### Install jupyterlab
 RUN pip install jupyterlab
 EXPOSE 8080
+
+### Expose port for filebrowser (but don't install it in the Dockerfile)
+EXPOSE 8585
 
 ### Reconfigure startup
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
