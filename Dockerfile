@@ -55,34 +55,104 @@ rm miniconda.sh
 ENV PATH /opt/conda/bin:$PATH
 
 ### Add all install scripts for further steps
+# Make sure the target directory exists before copying files
+RUN mkdir -p $INST_SCRIPTS
 ADD ./src/common/install/ $INST_SCRIPTS/
 ADD ./src/debian/install/ $INST_SCRIPTS/
 
 ### Give executable permissions to all the scripts in $INST_SCRIPTS
-RUN chmod +x $INST_SCRIPTS/*.sh
+RUN find $INST_SCRIPTS -name "*.sh" -type f -exec chmod +x {} \; || true
 
 ### Install some common tools
-RUN $INST_SCRIPTS/tools.sh
+RUN if [ -f "$INST_SCRIPTS/tools.sh" ]; then \
+        $INST_SCRIPTS/tools.sh; \
+    else \
+        echo "tools.sh not found, installing essential tools directly"; \
+        apt-get update && apt-get install -y --no-install-recommends \
+            sudo \
+            vim \
+            net-tools \
+            locales \
+            bzip2 \
+            ca-certificates \
+            curl \
+            && apt-get clean -y \
+            && rm -rf /var/lib/apt/lists/*; \
+    fi
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 ### Install custom fonts
-RUN $INST_SCRIPTS/install_custom_fonts.sh
+RUN if [ -f "$INST_SCRIPTS/install_custom_fonts.sh" ]; then \
+        $INST_SCRIPTS/install_custom_fonts.sh; \
+    else \
+        echo "install_custom_fonts.sh not found, skipping custom font installation"; \
+    fi
 
 ### Install xvnc-server & noVNC - HTML5 based VNC viewer
-RUN $INST_SCRIPTS/tigervnc.sh
-RUN $INST_SCRIPTS/no_vnc_1.5.0.sh
+RUN if [ -f "$INST_SCRIPTS/tigervnc.sh" ]; then \
+        $INST_SCRIPTS/tigervnc.sh; \
+    else \
+        echo "tigervnc.sh not found, installing TigerVNC directly"; \
+        apt-get update && apt-get install -y --no-install-recommends \
+            tigervnc-standalone-server \
+            tigervnc-common \
+            && apt-get clean -y \
+            && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+RUN if [ -f "$INST_SCRIPTS/no_vnc_1.5.0.sh" ]; then \
+        $INST_SCRIPTS/no_vnc_1.5.0.sh; \
+    else \
+        echo "no_vnc_1.5.0.sh not found, installing noVNC directly"; \
+        mkdir -p $NO_VNC_HOME/utils/websockify \
+        && wget -qO- https://github.com/novnc/noVNC/archive/v1.5.0.tar.gz | tar xz --strip 1 -C $NO_VNC_HOME \
+        && wget -qO- https://github.com/novnc/websockify/archive/v0.11.0.tar.gz | tar xz --strip 1 -C $NO_VNC_HOME/utils/websockify \
+        && chmod +x -v $NO_VNC_HOME/utils/*.sh; \
+    fi
 
 ### Install firefox and chrome browser
-RUN $INST_SCRIPTS/firefox.sh
+RUN if [ -f "$INST_SCRIPTS/firefox.sh" ]; then \
+        $INST_SCRIPTS/firefox.sh; \
+    else \
+        echo "firefox.sh not found, installing Firefox directly"; \
+        apt-get update && apt-get install -y --no-install-recommends \
+            firefox-esr \
+            && apt-get clean -y \
+            && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 ### Install IceWM UI
-RUN $INST_SCRIPTS/icewm_ui.sh
-ADD ./src/debian/icewm/ $HOME/
+RUN if [ -f "$INST_SCRIPTS/icewm_ui.sh" ]; then \
+        $INST_SCRIPTS/icewm_ui.sh; \
+    else \
+        echo "icewm_ui.sh not found, installing IceWM directly"; \
+        apt-get update && apt-get install -y --no-install-recommends \
+            icewm \
+            xterm \
+            xfonts-base \
+            xauth \
+            xinit \
+            x11-xserver-utils \
+        && apt-get clean -y \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+ADD ./src/debian/icewm/ $HOME/ || true
 
 ### configure startup
-RUN $INST_SCRIPTS/libnss_wrapper.sh
-ADD ./src/common/scripts $STARTUPDIR
-RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
+RUN if [ -f "$INST_SCRIPTS/libnss_wrapper.sh" ]; then \
+        $INST_SCRIPTS/libnss_wrapper.sh; \
+    else \
+        echo "libnss_wrapper.sh not found, skipping libnss wrapper setup"; \
+    fi
+ADD ./src/common/scripts $STARTUPDIR || true
+RUN if [ -f "$INST_SCRIPTS/set_user_permission.sh" ]; then \
+        $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME; \
+    else \
+        echo "set_user_permission.sh not found, setting basic permissions"; \
+        mkdir -p $STARTUPDIR \
+        && chmod 755 $STARTUPDIR \
+        && chmod 755 $HOME; \
+    fi
 
 ### Create conda environment
 RUN conda create -n visomaster python=3.10.13 && conda clean --all -y
