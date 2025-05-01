@@ -1,5 +1,5 @@
 # Use NVIDIA CUDA base image
-FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV REFRESHED_AT=2024-08-12 \
     DISPLAY=:1 \
@@ -30,19 +30,11 @@ WORKDIR $HOME
 # Update, install dependencies, set up timezone, and clean up in one layer.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      wget \
-      git \
-      build-essential \
-      software-properties-common \
-      apt-transport-https \
-      ca-certificates \
-      unzip \
-      ffmpeg \
-      jq \
-      tzdata && \
+      wget git build-essential software-properties-common \
+      apt-transport-https ca-certificates unzip ffmpeg jq tzdata && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
@@ -97,8 +89,9 @@ RUN git clone https://github.com/remphan1618/VisoMaster && \
 
 # Install dependencies
 WORKDIR /workspace/VisoMaster
-RUN conda install scikit-image -y
-RUN pip install -r requirements_cu124.txt
+COPY requirements_cu124.txt /workspace/VisoMaster/
+RUN conda install scikit-image -y && \
+    pip install --no-cache-dir -r requirements_cu124.txt
 
 # Download models
 WORKDIR /workspace/VisoMaster/model_assets
