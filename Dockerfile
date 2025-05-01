@@ -85,10 +85,10 @@ ADD ./src/common/scripts $STARTUPDIR
 RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
 ### Create conda environment
-RUN conda create -n visomaster python=3.10.13 && conda clean --all -y
+RUN conda create -n VisoMaster python=3.10.13 && conda clean --all -y
 
 ### Activate the environment
-ENV CONDA_DEFAULT_ENV visomaster
+ENV CONDA_DEFAULT_ENV VisoMaster
 RUN echo "source activate $CONDA_DEFAULT_ENV" >> ~/.bashrc
 ENV PATH /opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
@@ -98,10 +98,10 @@ RUN conda install scikit-image
 RUN conda install -c nvidia/label/cuda-12.4.1 cuda-runtime
 RUN conda install -c conda-forge cudnn
 
-### Install visomaster
+### Install VisoMaster
 WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster
-WORKDIR /workspace/visomaster
+WORKDIR /workspace/VisoMaster
 
 
 
