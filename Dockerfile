@@ -55,9 +55,14 @@ ENV PATH=/opt/conda/bin:$PATH
 # Copy installation scripts
 COPY ./src/common/install/ $INST_SCRIPTS/
 COPY ./src/debian/install/ $INST_SCRIPTS/
+COPY ./src/common/xfce/ $HOME/
+COPY ./src/common/scripts/ $STARTUPDIR/
 
 # Make all install scripts executable
 RUN chmod +x $INST_SCRIPTS/*.sh
+
+# Diagnose: List the contents of $STARTUPDIR to confirm scripts copied correctly.
+RUN ls -la $STARTUPDIR
 
 # Install common tools, custom fonts, VNC, browsers, and XFCE UI in one layer if possible
 RUN $INST_SCRIPTS/tools.sh && \
@@ -67,13 +72,8 @@ RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/firefox.sh && \
     $INST_SCRIPTS/xfce_ui.sh
 
-# Add XFCE configuration files
-COPY ./src/common/xfce/ $HOME/
-
 # Configure startup: wrap user permission changes and library configuration
 RUN $INST_SCRIPTS/libnss_wrapper.sh && \
-    mkdir -p $STARTUPDIR && \
-    cp -r ./src/common/scripts/* $STARTUPDIR && \
     $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
 # Create and configure the Conda environment in one shot to reduce layers.
@@ -93,7 +93,6 @@ RUN conda install scikit-image -y && \
 WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster && \
     cd VisoMaster && \
-    # You might add installation steps for VisoMaster here if needed
     echo "VisoMaster cloned"
 
 # Install JupyterLab
