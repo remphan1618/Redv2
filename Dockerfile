@@ -1,23 +1,11 @@
+# Use NVIDIA CUDA base image
 FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
-ENV REFRESHED_AT 2024-08-12
-
-LABEL io.k8s.description="Headless VNC Container with Xfce window manager, firefox and chromium" \
-      io.k8s.display-name="Headless VNC Container based on Debian" \
-      io.openshift.expose-services="6901:http,5901:xvnc" \
-      io.openshift.tags="vnc, debian, xfce" \
-      io.openshift.non-scalable=true
-
-### Connection ports for controlling the UI:
-### VNC port:5901
-### noVNC webport, connect via http://IP:6901/?password=vncpassword
-ENV DISPLAY=:1 \
+ENV REFRESHED_AT=2024-08-12 \
+    DISPLAY=:1 \
     VNC_PORT=5901 \
-    NO_VNC_PORT=6901
-EXPOSE $VNC_PORT $NO_VNC_PORT
-
-### Envrionment config
-ENV HOME=/workspace \
+    NO_VNC_PORT=6901 \
+    HOME=/workspace \
     TERM=xterm \
     STARTUPDIR=/dockerstartup \
     INST_SCRIPTS=/workspace/install \
@@ -27,90 +15,96 @@ ENV HOME=/workspace \
     VNC_PW=vncpassword \
     VNC_VIEW_ONLY=false \
     TZ=Asia/Seoul
+
+LABEL io.k8s.description="Headless VNC Container with Xfce window manager, firefox and chromium" \
+      io.k8s.display-name="Headless VNC Container based on Debian" \
+      io.openshift.expose-services="6901:http,5901:xvnc" \
+      io.openshift.tags="vnc, debian, xfce" \
+      io.openshift.non-scalable=true
+
+# Expose relevant ports
+EXPOSE $VNC_PORT $NO_VNC_PORT
+
 WORKDIR $HOME
 
-### Install necessary dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    git \
-    build-essential \
-    software-properties-common \
-    apt-transport-https \
-    ca-certificates \
-    git \
-    unzip \
-    ffmpeg \
-    jq \
-    tzdata && \
+# Update, install dependencies, set up timezone, and clean up in one layer.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      wget \
+      git \
+      build-essential \
+      software-properties-common \
+      apt-transport-https \
+      ca-certificates \
+      unzip \
+      ffmpeg \
+      jq \
+      tzdata && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-### Install Miniconda
+# Install Miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-bash miniconda.sh -b -p /opt/conda && \
-rm miniconda.sh
+    bash miniconda.sh -b -p /opt/conda && \
+    rm miniconda.sh
 
-### Add Conda to the PATH
-ENV PATH /opt/conda/bin:$PATH
+# Add Conda to the PATH
+ENV PATH=/opt/conda/bin:$PATH
 
-### Add all install scripts for further steps
-ADD ./src/common/install/ $INST_SCRIPTS/
-ADD ./src/debian/install/ $INST_SCRIPTS/
+# Copy installation scripts
+COPY ./src/common/install/ $INST_SCRIPTS/
+COPY ./src/debian/install/ $INST_SCRIPTS/
 
-### Give executable permissions to all the scripts in $INST_SCRIPTS
+# Make all install scripts executable
 RUN chmod +x $INST_SCRIPTS/*.sh
 
-### Install some common tools
-RUN $INST_SCRIPTS/tools.sh
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+# Install common tools, custom fonts, VNC, browsers, and XFCE UI in one layer if possible
+RUN $INST_SCRIPTS/tools.sh && \
+    $INST_SCRIPTS/install_custom_fonts.sh && \
+    $INST_SCRIPTS/tigervnc.sh && \
+    $INST_SCRIPTS/no_vnc_1.5.0.sh && \
+    $INST_SCRIPTS/firefox.sh && \
+    $INST_SCRIPTS/xfce_ui.sh
 
-### Install custom fonts
-RUN $INST_SCRIPTS/install_custom_fonts.sh
+# Add XFCE configuration files
+COPY ./src/common/xfce/ $HOME/
 
-### Install xvnc-server & noVNC - HTML5 based VNC viewer
-RUN $INST_SCRIPTS/tigervnc.sh
-RUN $INST_SCRIPTS/no_vnc_1.5.0.sh
+# Configure startup: wrap user permission changes and library configuration
+RUN $INST_SCRIPTS/libnss_wrapper.sh && \
+    mkdir -p $STARTUPDIR && \
+    cp -r ./src/common/scripts/* $STARTUPDIR && \
+    $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
-### Install firefox and chrome browser
-RUN $INST_SCRIPTS/firefox.sh
+# Create and configure the Conda environment in one shot to reduce layers.
+RUN conda create -n visomaster python=3.10.13 -y && conda clean --all -y && \
+    echo "source activate visomaster" >> ~/.bashrc
 
-### Install xfce UI
-RUN $INST_SCRIPTS/xfce_ui.sh
-ADD ./src/common/xfce/ $HOME/
+ENV CONDA_DEFAULT_ENV=visomaster
+ENV PATH=/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
-### Configure startup
-RUN $INST_SCRIPTS/libnss_wrapper.sh
-ADD ./src/common/scripts $STARTUPDIR
-RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
+# Install additional Python packages and CUDA dependencies
+RUN conda install scikit-image -y && \
+    conda install -c nvidia/label/cuda-12.4.1 cuda-runtime -y && \
+    conda install -c conda-forge cudnn -y && \
+    conda clean --all -y
 
-### Create conda environment
-RUN conda create -n visomaster python=3.10.13 && conda clean --all -y
-
-### Activate the environment
-ENV CONDA_DEFAULT_ENV visomaster
-RUN echo "source activate $CONDA_DEFAULT_ENV" >> ~/.bashrc
-ENV PATH /opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
-
-RUN conda install scikit-image
-
-### Install CUDA and cuDNN
-RUN conda install -c nvidia/label/cuda-12.4.1 cuda-runtime
-RUN conda install -c conda-forge cudnn
-
-### Install visomaster
+# Clone and install VisoMaster
 WORKDIR /workspace
-RUN git clone https://github.com/remphan1618/VisoMaster
+RUN git clone https://github.com/remphan1618/VisoMaster && \
+    cd VisoMaster && \
+    # You might add installation steps for VisoMaster here if needed
+    echo "VisoMaster cloned"
+
+# Install JupyterLab
 WORKDIR /workspace/visomaster
-
-### Install jupyterlab
 RUN pip install jupyterlab
-EXPOSE 8080
 
-### Expose port for filebrowser (but don't install it in the Dockerfile)
+# Expose additional ports for JupyterLab and filebrowser
+EXPOSE 8080
 EXPOSE 8585
 
-### Reconfigure startup
+# Reconfigure startup script
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
 RUN chmod 765 /dockerstartup/vnc_startup.sh
 
