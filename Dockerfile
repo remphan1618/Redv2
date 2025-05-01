@@ -55,14 +55,14 @@ rm miniconda.sh
 ENV PATH /opt/conda/bin:$PATH
 
 ### Add all install scripts for further steps
-ADD ./src/common/install/ /src/common/install/
-ADD ./src/debian/install/ /src/debian/install/
+ADD ./src/common/install/ $INST_SCRIPTS/
+ADD ./src/debian/install/ $INST_SCRIPTS/
 
 ### Give executable permissions to all the scripts in $INST_SCRIPTS
 RUN chmod +x $INST_SCRIPTS/*.sh
 
 ### Install some common tools
-RUN chmod +x /workspace/install/tools.sh && /workspace/install/tools.sh
+RUN $INST_SCRIPTS/tools.sh
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 ### Install custom fonts
@@ -75,11 +75,11 @@ RUN $INST_SCRIPTS/no_vnc_1.5.0.sh
 ### Install firefox and chrome browser
 RUN $INST_SCRIPTS/firefox.sh
 
-### Install xfce UI
-RUN $INST_SCRIPTS/xfce_ui.sh
-ADD ./src/common/xfce/ $HOME/
+### Install IceWM UI
+RUN $INST_SCRIPTS/icewm_ui.sh
+ADD ./src/debian/icewm/ $HOME/
 
-### Configure startup
+### configure startup
 RUN $INST_SCRIPTS/libnss_wrapper.sh
 ADD ./src/common/scripts $STARTUPDIR
 RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
@@ -88,7 +88,7 @@ RUN $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 RUN conda create -n visomaster python=3.10.13 && conda clean --all -y
 
 ### Activate the environment
-ENV CONDA_DEFAULT_ENV visomaster
+ENV CONDA_DEFAULT_ENV Rope
 RUN echo "source activate $CONDA_DEFAULT_ENV" >> ~/.bashrc
 ENV PATH /opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
@@ -98,22 +98,12 @@ RUN conda install -c conda-forge cudnn
 
 ### Install visomaster
 WORKDIR /workspace
-RUN git clone https://github.com/visomaster/VisoMaster.git
+RUN git clone https://github.com/remphan1618/VisoMaster
 WORKDIR /workspace/visomaster
+RUN mkdir -p Logs
 
-### Install dependencies. Fix Models.py backslash path
-RUN pip install -r ./requirements.txt --no-cache-dir
-RUN conda install scikit-image
-RUN pip install -r requirements_cu124.txt
-
-### Download models
-WORKDIR /workspace/visomaster/model_assets
-RUN python download_models.py
-WORKDIR /workspace/visomaster/model_assets
-
-### Install jupyterlab
-RUN pip install jupyterlab
-EXPOSE 8080
+# Copy setup notebook
+COPY ./setup_visomaster.ipynb /workspace/visomaster/
 
 ### Install filebrowser
 RUN wget -O - https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
