@@ -92,6 +92,8 @@ ENV CONDA_DEFAULT_ENV visomaster
 RUN echo "source activate $CONDA_DEFAULT_ENV" >> ~/.bashrc
 ENV PATH /opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
+RUN conda install scikit-image
+
 ### Install CUDA and cuDNN
 RUN conda install -c nvidia/label/cuda-12.4.1 cuda-runtime
 RUN conda install -c conda-forge cudnn
@@ -101,24 +103,7 @@ WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster
 WORKDIR /workspace/visomaster
 
-### Install scikit-image
-RUN conda install scikit-image
 
-### Install requirements
-RUN pip install -r requirements_cu124.txt
-
-### Download models
-WORKDIR /workspace/visomaster/model_assets
-RUN python download_models.py
-
-### Copy setup notebook for TensorRT and advanced configuration
-WORKDIR /workspace/visomaster
-COPY ./setup_visomaster.ipynb /workspace/visomaster/
-
-### Install notebook and requests for the setup notebook to work
-RUN pip install notebook requests
-
-WORKDIR /workspace/visomaster
 
 ### Install jupyterlab
 RUN pip install jupyterlab
