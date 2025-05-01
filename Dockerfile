@@ -102,7 +102,6 @@ RUN git clone https://github.com/visomaster/VisoMaster.git
 WORKDIR /workspace/visomaster
 
 ### Install dependencies. Fix Models.py backslash path
-RUN pip install -r ./requirements.txt --no-cache-dir
 RUN conda install scikit-image
 RUN pip install -r requirements_cu124.txt
 
