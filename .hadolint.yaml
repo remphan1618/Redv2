@@ -1,0 +1,6 @@
+ignored: # Add rules to ignore specific linting errors
+  - DL3059 # Ignore multiple consecutive RUN instructions warning
+overrides:
+  - line: "^RUN.*"
+    rule: DL3042
+    message: "Avoid caching pip installs"
