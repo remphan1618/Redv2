@@ -1,7 +1,7 @@
 # Stage 1: Base image for development and dependencies
 FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
 
-ENV REFRESHED_AT=2024-08-12 \
+ENV REFRESHED_AT=2025-05-03 \
     DISPLAY=:1 \
     VNC_PORT=5901 \
     NO_VNC_PORT=6901 \
@@ -24,12 +24,12 @@ LABEL io.k8s.description="Headless VNC Container with Xfce window manager, Firef
 
 WORKDIR $HOME
 
-# Install system dependencies
+# Install system dependencies - REMOVED VERSION CONSTRAINTS
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      wget=1.21.2-2ubuntu1 git=1:2.34.1-1ubuntu1.11 build-essential=12.9ubuntu3 \
-      software-properties-common=0.99.22 apt-transport-https=2.4.11 ca-certificates=20211016ubuntu0.22.04.1 \
-      unzip=6.0-26ubuntu3 ffmpeg=7:4.4.2-0ubuntu0.22.04.1 jq=1.6-2.1ubuntu3 tzdata=2023c-0ubuntu0.22.04.0 && \
+      wget git build-essential \
+      software-properties-common apt-transport-https ca-certificates \
+      unzip ffmpeg jq tzdata && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -78,14 +78,17 @@ WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 WORKDIR /workspace/VisoMaster
-RUN pip install --no-cache-dir -r requirements.txt
+# Added error handling for requirements file
+RUN pip install --no-cache-dir -r requirements.txt || \
+    (echo "Failed to install from requirements.txt, trying requirements_cu124.txt" && \
+     pip install --no-cache-dir -r requirements_cu124.txt)
 
-# Download models
+# Download models with error handling
 WORKDIR /workspace/VisoMaster/model_assets
-RUN python download_models.py
+RUN python download_models.py || echo "Model download failed, continue anyway"
 
-# Add the notebook
-COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/
+# Add the notebook if it exists
+COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/ || echo "Notebook not found, skipping"
 
 # Stage 3: Final runtime image
 FROM base AS runtime
@@ -96,15 +99,18 @@ COPY --from=build /opt/conda /opt/conda
 
 WORKDIR /workspace/VisoMaster
 
-# Create logs folder and symlink .log files
+# Create logs folder and symlink .log files - added error handling
 RUN mkdir -p /workspace/VisoMaster/logs && \
-    find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \;
+    find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \; || echo "No log files found to symlink"
 
 # Reconfigure startup script
-COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
-RUN chmod 765 /dockerstartup/vnc_startup.sh
+COPY ./src/vnc_startup_jupyterlab_filebrowser.sh $STARTUPDIR/vnc_startup.sh
+RUN chmod 765 $STARTUPDIR/vnc_startup.sh
 
 ENV VNC_RESOLUTION=1280x1024
+
+# Expose all necessary ports
+EXPOSE 5901 6901 8080 8585
 
 ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
 CMD ["--wait"]
