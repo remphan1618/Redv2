@@ -95,4 +95,3 @@ jobs:
           no-cache: true
           cache-from: type=registry,ref=${{ vars.DOCKER_USER }}/redv2:buildcache
           cache-to: type=registry,ref=${{ vars.DOCKER_USER }}/redv2:buildcache,mode=max
-          timeout-minutes: 120
