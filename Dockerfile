@@ -87,9 +87,13 @@ RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 
 
-# Download models
-WORKDIR /workspace/VisoMaster/model_assets
+RUN conda install scikit-image
+RUN pip install -r requirements_cu124.txt
+
+### Download models
+WORKDIR /workspace/visomaster/model_assets
 RUN python download_models.py
+WORKDIR /workspace/visomaster/model_assets
 
 # Add the notebook into the VisoMaster directory
 COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/
