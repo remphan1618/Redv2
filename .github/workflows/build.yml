@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.MY_FINE_GRAINED_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log Debug Information
         run: |
@@ -62,7 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.MY_FINE_GRAINED_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log Debug Information
         run: |
