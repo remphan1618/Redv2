@@ -27,14 +27,15 @@ WORKDIR $HOME
 # Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      wget git build-essential software-properties-common \
-      apt-transport-https ca-certificates unzip ffmpeg jq tzdata && \
+      wget=1.21.2-2ubuntu1 git=1:2.34.1-1ubuntu1.11 build-essential=12.9ubuntu3 \
+      software-properties-common=0.99.22 apt-transport-https=2.4.11 ca-certificates=20211016ubuntu0.22.04.1 \
+      unzip=6.0-26ubuntu3 ffmpeg=7:4.4.2-0ubuntu0.22.04.1 jq=1.6-2.1ubuntu3 tzdata=2023c-0ubuntu0.22.04.0 && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
+RUN wget --progress=dot:giga https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
     bash miniconda.sh -b -p /opt/conda && \
     rm miniconda.sh
 
@@ -53,9 +54,8 @@ RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/tigervnc.sh && \
     $INST_SCRIPTS/no_vnc_1.5.0.sh && \
     $INST_SCRIPTS/firefox.sh && \
-    $INST_SCRIPTS/xfce_ui.sh
-
-RUN $INST_SCRIPTS/libnss_wrapper.sh && \
+    $INST_SCRIPTS/xfce_ui.sh && \
+    $INST_SCRIPTS/libnss_wrapper.sh && \
     $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
 # Stage 2: Build environment for Python and VisoMaster
@@ -78,7 +78,7 @@ WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 WORKDIR /workspace/VisoMaster
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Download models
 WORKDIR /workspace/VisoMaster/model_assets
