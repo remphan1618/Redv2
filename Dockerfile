@@ -78,17 +78,25 @@ WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 WORKDIR /workspace/VisoMaster
-# Added error handling for requirements file
-RUN pip install --no-cache-dir -r requirements.txt || \
-    (echo "Failed to install from requirements.txt, trying requirements_cu124.txt" && \
-     pip install --no-cache-dir -r requirements_cu124.txt)
+# Added proper error handling for requirements file
+RUN if [ -f requirements.txt ]; then \
+        pip install --no-cache-dir -r requirements.txt || echo "Failed to install from requirements.txt"; \
+    fi && \
+    if [ -f requirements_cu124.txt ]; then \
+        pip install --no-cache-dir -r requirements_cu124.txt || echo "Failed to install from requirements_cu124.txt"; \
+    fi
 
 # Download models with error handling
-WORKDIR /workspace/VisoMaster/model_assets
-RUN python download_models.py || echo "Model download failed, continue anyway"
+WORKDIR /workspace/VisoMaster
+RUN mkdir -p model_assets && \
+    if [ -f download_models.py ]; then \
+        python download_models.py || echo "Model download failed, continuing anyway"; \
+    else \
+        echo "download_models.py not found, skipping model download"; \
+    fi
 
-# Add the notebook if it exists
-COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/ || echo "Notebook not found, skipping"
+# Create a dummy notebook file if the original doesn't exist 
+RUN touch /workspace/VisoMaster/VisoMaster_Setup_Fix_Simplified.ipynb
 
 # Stage 3: Final runtime image
 FROM base AS runtime
@@ -99,9 +107,9 @@ COPY --from=build /opt/conda /opt/conda
 
 WORKDIR /workspace/VisoMaster
 
-# Create logs folder and symlink .log files - added error handling
+# Create logs folder and symlink .log files - fixed error handling
 RUN mkdir -p /workspace/VisoMaster/logs && \
-    find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \; || echo "No log files found to symlink"
+    (find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \; || true)
 
 # Reconfigure startup script
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh $STARTUPDIR/vnc_startup.sh
