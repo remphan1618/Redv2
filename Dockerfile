@@ -1,5 +1,5 @@
-# Use NVIDIA CUDA base image
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+# Stage 1: Base image for development and dependencies
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
 
 ENV REFRESHED_AT=2024-08-12 \
     DISPLAY=:1 \
@@ -16,18 +16,15 @@ ENV REFRESHED_AT=2024-08-12 \
     VNC_VIEW_ONLY=false \
     TZ=Asia/Seoul
 
-LABEL io.k8s.description="Headless VNC Container with Xfce window manager, firefox and chromium" \
+LABEL io.k8s.description="Headless VNC Container with Xfce window manager, Firefox, and Chromium" \
       io.k8s.display-name="Headless VNC Container based on Debian" \
       io.openshift.expose-services="6901:http,5901:xvnc" \
       io.openshift.tags="vnc, debian, xfce" \
       io.openshift.non-scalable=true
 
-# Expose relevant ports
-EXPOSE $VNC_PORT $NO_VNC_PORT
-
 WORKDIR $HOME
 
-# Update, install dependencies, set up timezone, and clean up in one layer.
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       wget git build-essential software-properties-common \
@@ -41,7 +38,6 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
     bash miniconda.sh -b -p /opt/conda && \
     rm miniconda.sh
 
-# Add Conda to the PATH
 ENV PATH=/opt/conda/bin:$PATH
 
 # Copy installation scripts
@@ -49,14 +45,9 @@ COPY ./src/common/install/ $INST_SCRIPTS/
 COPY ./src/debian/install/ $INST_SCRIPTS/
 COPY ./src/common/xfce/ $HOME/
 COPY ./src/common/scripts/ $STARTUPDIR/
-
-# Make all install scripts executable
 RUN chmod +x $INST_SCRIPTS/*.sh
 
-# Diagnose: List the contents of $STARTUPDIR to confirm scripts copied correctly.
-RUN ls -la $STARTUPDIR
-
-# Install common tools, custom fonts, VNC, browsers, and XFCE UI in one layer if possible
+# Install software and dependencies
 RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/install_custom_fonts.sh && \
     $INST_SCRIPTS/tigervnc.sh && \
@@ -64,39 +55,46 @@ RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/firefox.sh && \
     $INST_SCRIPTS/xfce_ui.sh
 
-# Configure startup: wrap user permission changes and library configuration
 RUN $INST_SCRIPTS/libnss_wrapper.sh && \
     $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
-# Create and configure the Conda environment in one shot to reduce layers.
+# Stage 2: Build environment for Python and VisoMaster
+FROM base AS build
+
 RUN conda create -n VisoMaster python=3.10.13 -y && conda clean --all -y && \
     echo "source activate VisoMaster" >> ~/.bashrc
 
 ENV CONDA_DEFAULT_ENV=VisoMaster
 ENV PATH=/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
-# Install additional Python packages and CUDA dependencies
+# Install Python packages and CUDA dependencies
 RUN conda install scikit-image -y && \
     conda install -c nvidia/label/cuda-12.4.1 cuda-runtime -y && \
     conda install -c conda-forge cudnn -y && \
     conda clean --all -y
 
-# Clone and install VisoMaster
+# Clone and set up VisoMaster
 WORKDIR /workspace
 RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
-
-
-RUN conda install scikit-image
+WORKDIR /workspace/VisoMaster
 RUN pip install -r requirements.txt
 
-### Download models
+# Download models
 WORKDIR /workspace/VisoMaster/model_assets
 RUN python download_models.py
-WORKDIR /workspace/VisoMaster/model_assets
 
-# Add the notebook into the VisoMaster directory
+# Add the notebook
 COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/
+
+# Stage 3: Final runtime image
+FROM base AS runtime
+
+# Copy the necessary files from the build environment
+COPY --from=build /workspace /workspace
+COPY --from=build /opt/conda /opt/conda
+
+WORKDIR /workspace/VisoMaster
 
 # Create logs folder and symlink .log files
 RUN mkdir -p /workspace/VisoMaster/logs && \
