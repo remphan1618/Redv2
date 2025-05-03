@@ -24,25 +24,21 @@ LABEL io.k8s.description="Headless VNC Container with Xfce window manager, Firef
 
 WORKDIR $HOME
 
-# Free up space before installing
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    apt-get clean
-
-# Install system dependencies - REMOVED VERSION CONSTRAINTS
+# Install system dependencies, then clean up
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       wget git build-essential \
       software-properties-common apt-transport-https ca-certificates \
-      unzip ffmpeg jq tzdata && \
-    ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata && \
+      unzip ffmpeg jq tzdata python3 python3-pip && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc /usr/share/man /usr/share/locale/*
 
-# Install Miniconda
-RUN wget --progress=dot:giga https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
+# Install Miniconda & clean up
+RUN wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
     bash miniconda.sh -b -p /opt/conda && \
-    rm miniconda.sh
+    rm miniconda.sh && \
+    /opt/conda/bin/conda clean -afy && \
+    rm -rf /root/.conda ~/.cache ~/.npm /root/.cache
 
 ENV PATH=/opt/conda/bin:$PATH
 
@@ -53,7 +49,7 @@ COPY ./src/common/xfce/ $HOME/
 COPY ./src/common/scripts/ $STARTUPDIR/
 RUN chmod +x $INST_SCRIPTS/*.sh
 
-# Install software and dependencies
+# Install software and dependencies, then clean up
 RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/install_custom_fonts.sh && \
     $INST_SCRIPTS/tigervnc.sh && \
@@ -62,23 +58,26 @@ RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/xfce_ui.sh && \
     $INST_SCRIPTS/libnss_wrapper.sh && \
     $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME && \
-    rm -rf /tmp/* /var/tmp/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /usr/share/doc /usr/share/man /usr/share/locale/*
 
 # Stage 2: Build environment for Python and VisoMaster
 FROM base AS build
 
+# Set up conda, mamba, and clean up
 RUN conda install -n base -c conda-forge mamba -y && \
     mamba create -n VisoMaster python=3.10.13 -y && \
     mamba clean --all -y && \
-    echo "source activate VisoMaster" >> ~/.bashrc
+    echo "source activate VisoMaster" >> ~/.bashrc && \
+    rm -rf /opt/conda/pkgs/* ~/.cache ~/.npm /root/.cache
 
 ENV CONDA_DEFAULT_ENV=VisoMaster
 ENV PATH=/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
-# Install Python packages and CUDA dependencies
+# Install Python packages and CUDA dependencies, then clean up
 RUN mamba install -n VisoMaster scikit-image -y && \
     mamba install -n VisoMaster -c nvidia/label/cuda-12.4.1 cuda-runtime cudnn -y && \
-    mamba clean --all -y
+    mamba clean --all -y && \
+    rm -rf /opt/conda/pkgs/* ~/.cache ~/.npm /root/.cache
 
 # Clone VisoMaster (shallow clone to save space)
 WORKDIR /workspace
@@ -88,53 +87,39 @@ RUN git clone --depth 1 https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 WORKDIR /workspace/VisoMaster
 
-# Install requirements with error handling
-RUN if [ -f requirements.txt ]; then \
-        pip install --no-cache-dir -r requirements.txt || echo "Failed to install from requirements.txt"; \
-    fi && \
-    if [ -f requirements_cu124.txt ]; then \
-        pip install --no-cache-dir -r requirements_cu124.txt || echo "Failed to install from requirements_cu124.txt"; \
-    fi && \
-    pip cache purge
+# Install requirements and clean up
+RUN pip install --no-cache-dir -r requirements_cu124.txt && \
+    pip cache purge && \
+    rm -rf ~/.cache ~/.npm /root/.cache
 
 # Create minimal placeholder structure for models
-# Instead of downloading models during build, we'll create the directories
-# and add a README that instructs users to download models
 RUN mkdir -p model_assets && \
     echo "Models will be downloaded on first run.\nTo manually download models, run: python download_models.py" > model_assets/README.txt
 
 # Create a dummy notebook file in case it doesn't exist
 RUN touch /workspace/VisoMaster/VisoMaster_Setup_Fix_Simplified.ipynb
 
-# Stage 3: Final runtime image
+# Stage 3: Final runtime image, clean up at every step
 FROM base AS runtime
 
-# Copy the necessary files from the build environment
 COPY --from=build /workspace /workspace
 COPY --from=build /opt/conda /opt/conda
 
 WORKDIR /workspace/VisoMaster
 
-# Create logs folder
 RUN mkdir -p /workspace/VisoMaster/logs && \
-    chmod -R 777 /workspace
+    chmod -R 777 /workspace && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache ~/.npm /root/.cache /opt/conda/pkgs/* /usr/share/doc /usr/share/man /usr/share/locale/*
 
 # Add a script to download models on first run
-RUN echo '#!/bin/bash\ncd /workspace/VisoMaster\nif [ ! -f model_assets/models_downloaded ]; then\n  echo "Downloading models on first run..."\n  python download_models.py && touch model_assets/models_downloaded\nfi' > /usr/local/bin/download_models.sh && \
-    chmod +x /usr/local/bin/download_models.sh
+RUN echo '#!/bin/bash\ncd /workspace/VisoMaster\nif [ ! -f model_assets/models_downloaded ]; then\n  echo "Downloading models on first run..."\n  python download_models.py && touch model_assets/models_downloaded\nfi\n/dockerstartup/vnc_startup.sh "$@"' > /workspace/VisoMaster/run.sh && chmod +x /workspace/VisoMaster/run.sh
 
-# Reconfigure startup script
-COPY ./src/vnc_startup_jupyterlab_filebrowser.sh $STARTUPDIR/vnc_startup.sh
-RUN chmod 765 $STARTUPDIR/vnc_startup.sh
-
-# Create a modified startup script that downloads models on first run
-RUN echo '#!/bin/bash\n/usr/local/bin/download_models.sh &\n$STARTUPDIR/vnc_startup.sh "$@"' > $STARTUPDIR/startup_with_models.sh && \
-    chmod +x $STARTUPDIR/startup_with_models.sh
+COPY ./src/vnc_startup_jupyterlab_filebrowser.sh /dockerstartup/vnc_startup.sh
+RUN chmod 765 /dockerstartup/vnc_startup.sh
 
 ENV VNC_RESOLUTION=1280x1024
 
-# Expose all necessary ports
 EXPOSE 5901 6901 8080 8585
 
-ENTRYPOINT ["/dockerstartup/startup_with_models.sh"]
+ENTRYPOINT ["/workspace/VisoMaster/run.sh"]
 CMD ["--wait"]
