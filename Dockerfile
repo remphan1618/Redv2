@@ -87,8 +87,13 @@ RUN git clone --depth 1 https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 WORKDIR /workspace/VisoMaster
 
-# Install requirements and clean up
-RUN pip install --no-cache-dir -r requirements_cu124.txt && \
+# Failsafe: Download requirements.txt if missing
+RUN if [ ! -f requirements.txt ]; then \
+      echo "requirements.txt not found, downloading from GitHub..."; \
+      wget https://raw.githubusercontent.com/remphan1618/VisoMaster/main/requirements.txt; \
+    fi
+
+RUN pip install --no-cache-dir -r requirements.txt && \
     pip cache purge && \
     rm -rf ~/.cache ~/.npm /root/.cache
 
