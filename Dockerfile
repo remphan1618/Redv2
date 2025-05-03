@@ -61,17 +61,17 @@ RUN $INST_SCRIPTS/libnss_wrapper.sh && \
 # Stage 2: Build environment for Python and VisoMaster
 FROM base AS build
 
-RUN conda create -n VisoMaster python=3.10.13 -y && conda clean --all -y && \
+RUN conda install -n base -c conda-forge mamba -y && \
+    mamba create -n VisoMaster python=3.10.13 -y && mamba clean --all -y && \
     echo "source activate VisoMaster" >> ~/.bashrc
 
 ENV CONDA_DEFAULT_ENV=VisoMaster
 ENV PATH=/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
 # Install Python packages and CUDA dependencies
-RUN conda install scikit-image -y && \
-    conda install -c nvidia/label/cuda-12.4.1 cuda-runtime -y && \
-    conda install -c conda-forge cudnn -y && \
-    conda clean --all -y
+RUN mamba install -n VisoMaster scikit-image -y && \
+    mamba install -n VisoMaster -c nvidia/label/cuda-12.4.1 cuda-runtime cudnn -y && \
+    mamba clean --all -y
 
 # Clone and set up VisoMaster
 WORKDIR /workspace
