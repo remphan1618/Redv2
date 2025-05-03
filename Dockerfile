@@ -69,10 +69,10 @@ RUN $INST_SCRIPTS/libnss_wrapper.sh && \
     $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
 
 # Create and configure the Conda environment in one shot to reduce layers.
-RUN conda create -n visomaster python=3.10.13 -y && conda clean --all -y && \
-    echo "source activate visomaster" >> ~/.bashrc
+RUN conda create -n VisoMaster python=3.10.13 -y && conda clean --all -y && \
+    echo "source activate VisoMaster" >> ~/.bashrc
 
-ENV CONDA_DEFAULT_ENV=visomaster
+ENV CONDA_DEFAULT_ENV=VisoMaster
 ENV PATH=/opt/conda/envs/$CONDA_DEFAULT_ENV/bin:$PATH
 
 # Install additional Python packages and CUDA dependencies
@@ -91,9 +91,9 @@ RUN conda install scikit-image
 RUN pip install -r requirements.txt
 
 ### Download models
-WORKDIR /workspace/visomaster/model_assets
+WORKDIR /workspace/VisoMaster/model_assets
 RUN python download_models.py
-WORKDIR /workspace/visomaster/model_assets
+WORKDIR /workspace/VisoMaster/model_assets
 
 # Add the notebook into the VisoMaster directory
 COPY VisoMaster_Setup_Fix_Simplified.ipynb /workspace/VisoMaster/
