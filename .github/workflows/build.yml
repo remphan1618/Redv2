@@ -16,9 +16,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Step 2: Clear Docker Cache (optional for better caching)
-      - name: Clear Docker Cache
-        run: docker system prune -af --volumes
+      # Step 2: Clear Cache
+      - name: Clear Cache
+        uses: TheRealRyGuy/clear-cache-action@v0.1
+        with:
+          # This token is required for the action to work.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # Step 3: Lint Dockerfile
       - name: Lint Dockerfile
@@ -82,14 +85,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Step 2: Log in to Docker Hub
+      # Step 2: Clear Cache
+      - name: Clear Cache
+        uses: TheRealRyGuy/clear-cache-action@v0.1
+        with:
+          # This token is required for the action to work.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Step 3: Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PAT }}
 
-      # Step 3: Set up Docker Buildx
+      # Step 4: Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -97,7 +107,7 @@ jobs:
           endpoint: "remphan/name"
           install: true
 
-      # Step 4: Build and Push Image
+      # Step 5: Build and Push Image
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
