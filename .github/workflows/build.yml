@@ -46,20 +46,7 @@ jobs:
       # Prevent Docker layer caching
       - name: Build and Push (no cache)
         run: |
-          set -e
-          for i in {1..3}; do
-            echo "Attempt $i: Building Docker image..."
-            if docker buildx build --no-cache --push --tag "${{ vars.DOCKER_USER }}/redv2:latest" .; then
-              echo "Build succeeded!"
-              break
-            elif [ $i -eq 3 ]; then
-              echo "Build failed after $i attempts."
-              exit 1
-            else
-              echo "Build failed. Retrying..."
-              sleep 10
-            fi
-          done
+          docker buildx build --no-cache --push --tag "${{ vars.DOCKER_USER }}/redv2:latest" .
 
     continue-on-error: true
 
