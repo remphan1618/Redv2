@@ -95,3 +95,22 @@ jobs:
           tags: ${{ vars.DOCKER_USER }}/github-runner-image:latest
           cache-from: type=registry,ref=${{ vars.DOCKER_USER }}/github-runner-image:buildcache
           cache-to: type=registry,ref=${{ vars.DOCKER_USER }}/github-runner-image:buildcache,mode=max
+
+  # Add a notification job (optional but recommended)
+  notify:
+    needs: [github_runners, docker_cloud_builders]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        run: |
+          if [[ "${{ needs.github_runners.result }}" == "success" ]]; then
+            echo "Primary build job succeeded!"
+            exit 0
+          elif [[ "${{ needs.docker_cloud_builders.result }}" == "success" ]]; then
+            echo "Fallback build job succeeded!"
+            exit 0
+          else
+            echo "All build jobs failed!"
+            exit 1
+          fi
