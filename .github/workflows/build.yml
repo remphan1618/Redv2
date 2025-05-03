@@ -36,12 +36,23 @@ jobs:
           username: ${{ vars.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PAT }}
 
-      # Step 5: Build and Push Image (Retry Mechanism Added)
+      # Step 5: Build and Push Image (Manual Retry Logic)
       - name: Build and Push
-        uses: docker/build-push-action@v6
-        with:
-          tags: ${{ vars.DOCKER_USER }}/github-runner-image:latest
-        retry: 3
+        run: |
+          set -e
+          for i in {1..3}; do
+            echo "Attempt $i: Building Docker image..."
+            if docker buildx build --push --tag "${{ vars.DOCKER_USER }}/github-runner-image:latest" .; then
+              echo "Build succeeded!"
+              break
+            elif [ $i -eq 3 ]; then
+              echo "Build failed after $i attempts."
+              exit 1
+            else
+              echo "Build failed. Retrying..."
+              sleep 10
+            fi
+          done
 
     # Continue to the fallback job if this one fails
     continue-on-error: true
@@ -64,22 +75,5 @@ jobs:
 
       # Step 3: Log in to Docker Hub
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PAT }}
-
-      # Step 4: Set up Docker Buildx with Cloud Driver
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver: cloud
-          endpoint: "remphan/name"
-          install: true
-
-      # Step 5: Build and Push Image with Dynamic Tagging
-      - name: Build and Push
-        uses: docker/build-push-action@v6
-        with:
-          tags: ${{ vars.DOCKER_USER }}/cloud-builder-image:${{ github.run_id }}
-        retry: 3
+](#)
+
