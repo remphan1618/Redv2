@@ -88,7 +88,7 @@ RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
 
 
 RUN conda install scikit-image
-RUN pip install -r requirements_cu124.txt
+RUN pip install -r requirements.txt
 
 ### Download models
 WORKDIR /workspace/visomaster/model_assets
