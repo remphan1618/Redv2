@@ -24,6 +24,10 @@ LABEL io.k8s.description="Headless VNC Container with Xfce window manager, Firef
 
 WORKDIR $HOME
 
+# Free up space before installing
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    apt-get clean
+
 # Install system dependencies - REMOVED VERSION CONSTRAINTS
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -32,6 +36,7 @@ RUN apt-get update && \
       unzip ffmpeg jq tzdata && \
     ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install Miniconda
@@ -56,13 +61,15 @@ RUN $INST_SCRIPTS/tools.sh && \
     $INST_SCRIPTS/firefox.sh && \
     $INST_SCRIPTS/xfce_ui.sh && \
     $INST_SCRIPTS/libnss_wrapper.sh && \
-    $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME
+    $INST_SCRIPTS/set_user_permission.sh $STARTUPDIR $HOME && \
+    rm -rf /tmp/* /var/tmp/*
 
 # Stage 2: Build environment for Python and VisoMaster
 FROM base AS build
 
 RUN conda install -n base -c conda-forge mamba -y && \
-    mamba create -n VisoMaster python=3.10.13 -y && mamba clean --all -y && \
+    mamba create -n VisoMaster python=3.10.13 -y && \
+    mamba clean --all -y && \
     echo "source activate VisoMaster" >> ~/.bashrc
 
 ENV CONDA_DEFAULT_ENV=VisoMaster
@@ -73,29 +80,30 @@ RUN mamba install -n VisoMaster scikit-image -y && \
     mamba install -n VisoMaster -c nvidia/label/cuda-12.4.1 cuda-runtime cudnn -y && \
     mamba clean --all -y
 
-# Clone and set up VisoMaster
+# Clone VisoMaster (shallow clone to save space)
 WORKDIR /workspace
-RUN git clone https://github.com/remphan1618/VisoMaster.git VisoMaster
+RUN git clone --depth 1 https://github.com/remphan1618/VisoMaster.git VisoMaster && \
+    cd VisoMaster && \
+    git config --global --add safe.directory /workspace/VisoMaster
 
 WORKDIR /workspace/VisoMaster
-# Added proper error handling for requirements file
+
+# Install requirements with error handling
 RUN if [ -f requirements.txt ]; then \
         pip install --no-cache-dir -r requirements.txt || echo "Failed to install from requirements.txt"; \
     fi && \
     if [ -f requirements_cu124.txt ]; then \
         pip install --no-cache-dir -r requirements_cu124.txt || echo "Failed to install from requirements_cu124.txt"; \
-    fi
+    fi && \
+    pip cache purge
 
-# Download models with error handling
-WORKDIR /workspace/VisoMaster
+# Create minimal placeholder structure for models
+# Instead of downloading models during build, we'll create the directories
+# and add a README that instructs users to download models
 RUN mkdir -p model_assets && \
-    if [ -f download_models.py ]; then \
-        python download_models.py || echo "Model download failed, continuing anyway"; \
-    else \
-        echo "download_models.py not found, skipping model download"; \
-    fi
+    echo "Models will be downloaded on first run.\nTo manually download models, run: python download_models.py" > model_assets/README.txt
 
-# Create a dummy notebook file if the original doesn't exist 
+# Create a dummy notebook file in case it doesn't exist
 RUN touch /workspace/VisoMaster/VisoMaster_Setup_Fix_Simplified.ipynb
 
 # Stage 3: Final runtime image
@@ -107,18 +115,26 @@ COPY --from=build /opt/conda /opt/conda
 
 WORKDIR /workspace/VisoMaster
 
-# Create logs folder and symlink .log files - fixed error handling
+# Create logs folder
 RUN mkdir -p /workspace/VisoMaster/logs && \
-    (find / -name "*.log" -exec ln -sf {} /workspace/VisoMaster/logs/ \; || true)
+    chmod -R 777 /workspace
+
+# Add a script to download models on first run
+RUN echo '#!/bin/bash\ncd /workspace/VisoMaster\nif [ ! -f model_assets/models_downloaded ]; then\n  echo "Downloading models on first run..."\n  python download_models.py && touch model_assets/models_downloaded\nfi' > /usr/local/bin/download_models.sh && \
+    chmod +x /usr/local/bin/download_models.sh
 
 # Reconfigure startup script
 COPY ./src/vnc_startup_jupyterlab_filebrowser.sh $STARTUPDIR/vnc_startup.sh
 RUN chmod 765 $STARTUPDIR/vnc_startup.sh
+
+# Create a modified startup script that downloads models on first run
+RUN echo '#!/bin/bash\n/usr/local/bin/download_models.sh &\n$STARTUPDIR/vnc_startup.sh "$@"' > $STARTUPDIR/startup_with_models.sh && \
+    chmod +x $STARTUPDIR/startup_with_models.sh
 
 ENV VNC_RESOLUTION=1280x1024
 
 # Expose all necessary ports
 EXPOSE 5901 6901 8080 8585
 
-ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
+ENTRYPOINT ["/dockerstartup/startup_with_models.sh"]
 CMD ["--wait"]
