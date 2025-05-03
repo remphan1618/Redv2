@@ -13,20 +13,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Step 2: Lint Dockerfile
+      # Step 2: Clear Docker cache
+      - name: Clear Docker Cache
+        run: docker system prune -af --volumes
+
+      # Step 3: Lint Dockerfile
       - name: Lint Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ./Dockerfile
+          config: ./.hadolint.yaml
 
-      # Step 3: Log in to Docker Hub
+      # Step 4: Log in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PAT }}
 
-      # Step 4: Build and push (base stage)
+      # Step 5: Build and push (base stage)
       - name: Build and push (base stage)
         uses: docker/build-push-action@v6
         with:
@@ -35,7 +40,7 @@ jobs:
           cache-to: type=registry,ref=${{ vars.DOCKER_USER }}/redv2:cache,mode=max
           tags: ${{ vars.DOCKER_USER }}/redv2:base
 
-      # Step 5: Build and push (build stage)
+      # Step 6: Build and push (build stage)
       - name: Build and push (build stage)
         uses: docker/build-push-action@v6
         with:
@@ -44,7 +49,7 @@ jobs:
           cache-to: type=registry,ref=${{ vars.DOCKER_USER }}/redv2:cache,mode=max
           tags: ${{ vars.DOCKER_USER }}/redv2:build
 
-      # Step 6: Build and push (runtime stage)
+      # Step 7: Build and push (runtime stage)
       - name: Build and push (runtime stage)
         uses: docker/build-push-action@v6
         with:
@@ -53,7 +58,7 @@ jobs:
           cache-to: type=registry,ref=${{ vars.DOCKER_USER }}/redv2:cache,mode=max
           tags: ${{ vars.DOCKER_USER }}/redv2:latest
 
-      # Step 7: Test Docker Image
+      # Step 8: Test Docker Image
       - name: Test Docker Image
         run: |
           docker run --rm ${{ vars.DOCKER_USER }}/redv2:latest python -c "import scikit_image"
